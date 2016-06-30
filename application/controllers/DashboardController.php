@@ -32,6 +32,13 @@ class DashboardController extends Controller
 
         if ($pane = $this->params->get('pane')) {
             $this->dashboard->activate($pane);
+        } else {
+            foreach ($this->dashboard->getPanes() as $key => $pane) {
+                if (! $pane->getDisabled()) {
+                    $this->dashboard->activate($key);
+                    break;
+                }
+            }
         }
 
         $this->view->title = $this->dashboard->getActivePane()->getTitle() . ' :: Dashboard';
