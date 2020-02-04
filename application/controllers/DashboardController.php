@@ -2,26 +2,54 @@
 
 namespace Icinga\Module\Enforceddashboard\Controllers;
 
-use Icinga\Web\Controller;
+use Icinga\Controllers\DashboardController as IcingaDashboardController;
+use Icinga\Exception\NotFoundError;
 use Icinga\Web\Widget\Dashboard;
 use Icinga\User;
 
-class DashboardController extends Controller
+class DashboardController extends IcingaDashboardController
 {
     /**
      * @var Dashboard;
      */
     private $dashboard;
 
+    private $dashboardUser;
+
+    protected $requiresAuthentication = false;
+
     public function init()
     {
-        $this->dashboard = new Dashboard();
-        $this->dashboard->setUser(new User('enforced-dashboard'));
-        $this->dashboard->load();
+        if ($this->Auth()->isAuthenticated()) {
+            $restriction = 'enforceddashboard/redirect-on-login';
+            foreach ($this->Auth()->getUser()->getRestrictions($restriction) as $url) {
+                $this->redirectNow($url);
+            }
+        } else {
+            $this->redirectToLogin();
+        }
+
+        $restriction = 'enforceddashboard/dashboard-user';
+        foreach ($this->Auth()->getUser()->getRestrictions($restriction) as $user) {
+            $this->dashboardUser = $user;
+        }
+
+        if ($this->dashboardUser) {
+            $this->dashboard = new Dashboard();
+            $this->dashboard->setUser($this->Auth()->getUser());
+            $this->dashboard->setUser(new User($this->dashboardUser));
+            $this->dashboard->load();
+        } else {
+            parent::init();
+        }
     }
 
     public function indexAction()
     {
+        if ($this->dashboardUser === null) {
+            parent::indexAction();
+            return;
+        }
         $this->view->tabs = $this->dashboard->getTabs();
         $this->view->dashboard = $this->dashboard;
 
@@ -42,5 +70,69 @@ class DashboardController extends Controller
         }
 
         $this->view->title = $this->dashboard->getActivePane()->getTitle() . ' :: Dashboard';
+    }
+
+    /**
+     * @throws NotFoundError
+     */
+    public function newDashletAction()
+    {
+        $this->forwardToParent('newDashletAction');
+    }
+
+    /**
+     * @throws NotFoundError
+     */
+    public function updateDashletAction()
+    {
+        $this->forwardToParent('updateDashletAction');
+    }
+
+    /**
+     * @throws NotFoundError
+     */
+    public function removeDashletAction()
+    {
+        $this->forwardToParent('removeDashletAction');
+    }
+
+    /**
+     * @throws NotFoundError
+     */
+    public function renamePaneAction()
+    {
+        $this->forwardToParent('renamePaneAction');
+    }
+
+    /**
+     * @throws NotFoundError
+     */
+    public function removePaneAction()
+    {
+        $this->forwardToParent('removePaneAction');
+    }
+
+    /**
+     * @throws NotFoundError
+     */
+    public function settingsAction()
+    {
+        $this->forwardToParent('settingsAction');
+    }
+
+    /**
+     * @param $action
+     * @throws NotFoundError
+     */
+    protected function forwardToParent($action)
+    {
+        if (! $this->Auth()->isAuthenticated()) {
+            $this->redirectToLogin();
+        }
+        if ($this->dashboardUser === null) {
+            parent::$action();
+        } else {
+            throw new NotFoundError('Not found');
+        }
     }
 }
